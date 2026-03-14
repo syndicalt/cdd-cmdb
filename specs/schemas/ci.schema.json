@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cdd-cmdb/schemas/ci",
+  "title": "Configuration Item",
+  "description": "A managed resource in the CMDB (server, app, network device, etc.)",
+  "type": "object",
+  "required": ["name", "type"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Server-assigned unique identifier"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "type": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "CI type label (e.g. server, app, database, network)"
+    },
+    "attributes": {
+      "type": "object",
+      "description": "Flat key-value map of scalar attributes. Nested objects are not permitted.",
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string" },
+          { "type": "number" },
+          { "type": "boolean" },
+          { "type": "null" }
+        ]
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

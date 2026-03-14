@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cdd-cmdb/schemas/relationship",
+  "title": "Relationship",
+  "description": "A directed, typed edge between two Configuration Items",
+  "type": "object",
+  "required": ["source_id", "target_id", "type"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Server-assigned unique identifier"
+    },
+    "source_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The CI the relationship originates from"
+    },
+    "target_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The CI the relationship points to"
+    },
+    "type": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Relationship type label (e.g. hosts, depends_on, connects_to)"
+    },
+    "attributes": {
+      "type": "object",
+      "description": "Flat key-value map of scalar attributes",
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string" },
+          { "type": "number" },
+          { "type": "boolean" },
+          { "type": "null" }
+        ]
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

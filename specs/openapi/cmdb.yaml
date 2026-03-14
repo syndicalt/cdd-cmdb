@@ -1,0 +1,324 @@
+openapi: 3.1.0
+info:
+  title: CMDB API
+  version: 1.0.0
+  description: |
+    Contract specification for a compliant CMDB instance.
+    Any implementation that satisfies this spec is a valid CMDB.
+    Tests in suites/ are the authoritative acceptance criteria.
+
+paths:
+  /health:
+    get:
+      operationId: healthCheck
+      summary: Liveness check
+      responses:
+        "200":
+          description: Instance is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+
+  /cis:
+    post:
+      operationId: createCI
+      summary: Create a Configuration Item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CIInput"
+      responses:
+        "201":
+          description: CI created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CI"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    get:
+      operationId: listCIs
+      summary: List / query Configuration Items
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: name
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            maximum: 1000
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Paginated list of CIs
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, total]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CI"
+                  total:
+                    type: integer
+
+  /cis/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getCI
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CI"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateCI
+      summary: Full replacement update of a CI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CIInput"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CI"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      operationId: deleteCI
+      responses:
+        "204":
+          description: CI deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /relationships:
+    post:
+      operationId: createRelationship
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RelationshipInput"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Relationship"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /relationships/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getRelationship
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Relationship"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteRelationship
+      responses:
+        "204":
+          description: Relationship deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /cis/{id}/relationships:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getCIRelationships
+      summary: Get all relationships for a CI
+      parameters:
+        - name: direction
+          in: query
+          schema:
+            type: string
+            enum: [outbound, inbound, both]
+            default: both
+        - name: type
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Relationship"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  schemas:
+    CIInput:
+      type: object
+      required: [name, type]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        type:
+          type: string
+          minLength: 1
+        attributes:
+          type: object
+          additionalProperties:
+            type: [string, number, boolean, "null"]
+          description: |
+            Flat key-value map of scalar attributes only.
+            Nested objects are not permitted.
+
+    CI:
+      allOf:
+        - $ref: "#/components/schemas/CIInput"
+        - type: object
+          required: [id, created_at, updated_at]
+          properties:
+            id:
+              type: string
+              format: uuid
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+
+    RelationshipInput:
+      type: object
+      required: [source_id, target_id, type]
+      properties:
+        source_id:
+          type: string
+          format: uuid
+        target_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          minLength: 1
+        attributes:
+          type: object
+          additionalProperties:
+            type: [string, number, boolean, "null"]
+
+    Relationship:
+      allOf:
+        - $ref: "#/components/schemas/RelationshipInput"
+        - type: object
+          required: [id, created_at]
+          properties:
+            id:
+              type: string
+              format: uuid
+            created_at:
+              type: string
+              format: date-time
+
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: array
+          items:
+            type: object
+
+  responses:
+    BadRequest:
+      description: Malformed request body
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ValidationError:
+      description: Schema validation failure
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Conflict:
+      description: Conflict — e.g. CI has active relationships and cannot be deleted
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
