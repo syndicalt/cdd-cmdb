@@ -7,6 +7,10 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from generator.backends import BackendSpec
 
 # Detect platform for venv paths
 IS_WINDOWS = sys.platform == "win32" or os.name == "nt"
@@ -41,8 +45,22 @@ def setup_venv(output_dir: Path) -> None:
         )
 
 
+def setup_non_python(output_dir: Path, backend: BackendSpec) -> None:
+    """Set up a non-Python backend (install deps via install_cmd)."""
+    if not backend.install_cmd:
+        return
+
+    print(f"  Installing {backend.language} dependencies...")
+    subprocess.run(
+        backend.install_cmd,
+        cwd=str(output_dir),
+        check=True,
+        capture_output=True,
+    )
+
+
 def start_server(output_dir: Path, port: int) -> subprocess.Popen:
-    """Start app.py as a subprocess, return the Popen handle."""
+    """Start a Python app.py as a subprocess, return the Popen handle."""
     python = venv_python(output_dir)
     env = {**os.environ, "PORT": str(port)}
 
@@ -53,6 +71,29 @@ def start_server(output_dir: Path, port: int) -> subprocess.Popen:
 
     proc = subprocess.Popen(
         [python, "app.py"],
+        cwd=str(output_dir),
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        **kwargs,
+    )
+    return proc
+
+
+def start_non_python_server(
+    output_dir: Path,
+    port: int,
+    backend: BackendSpec,
+) -> subprocess.Popen:
+    """Start a non-Python server using the backend's start_cmd."""
+    env = {**os.environ, "PORT": str(port)}
+
+    kwargs: dict = {}
+    if IS_WINDOWS:
+        kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+
+    proc = subprocess.Popen(
+        backend.start_cmd,
         cwd=str(output_dir),
         env=env,
         stdout=subprocess.PIPE,
@@ -100,9 +141,14 @@ def wait_for_health(port: int, timeout: float = 30.0, interval: float = 0.5) -> 
 def read_generated_code(output_dir: Path) -> str:
     """Read all generated source files into a formatted string for LLM context."""
     parts: list[str] = []
-    for ext in ("*.py", "*.txt", "*.toml", "*.cfg", "*.json", "*.yaml", "*.yml"):
+    extensions = (
+        "*.py", "*.txt", "*.toml", "*.cfg", "*.json", "*.yaml", "*.yml",
+        "*.go", "*.mod", "*.sum",  # Go
+        "*.js", "*.ts", "*.mjs",   # Node
+    )
+    for ext in extensions:
         for f in sorted(output_dir.glob(ext)):
-            if f.name.startswith(".") or ".venv" in str(f):
+            if f.name.startswith(".") or ".venv" in str(f) or "node_modules" in str(f):
                 continue
             rel = f.name
             parts.append(f'<file path="{rel}">\n{f.read_text(encoding="utf-8")}\n</file>')

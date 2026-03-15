@@ -20,11 +20,13 @@ settings.register_profile(
     "ci",
     max_examples=25,
     suppress_health_check=[HealthCheck.too_slow],
+    deadline=None,  # Network round-trips make per-example deadlines unreliable
 )
 settings.register_profile(
     "release",
     max_examples=500,
     suppress_health_check=[HealthCheck.too_slow],
+    deadline=None,
 )
 settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "ci"))
 

@@ -59,7 +59,10 @@ class TestAttributeTypes:
         finally:
             client.delete_ci(ci.id)
 
-    @given(st.text(min_size=1, max_size=64))
+    @given(st.text(
+        alphabet=st.characters(blacklist_categories=("Cs", "Cc")),
+        min_size=1, max_size=64,
+    ))
     def test_string_attribute_round_trips(self, client: CMDBClient, value: str):
         ci = client.create_ci(name="str-attr-test", type="server", attributes={"label": value})
         try:

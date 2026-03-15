@@ -11,29 +11,27 @@ the authoritative specification.
 ## Constraints
 - Backend stack: {backend}
 - The server MUST listen on 0.0.0.0 port {port}
-- The entry point MUST be `app.py` — startable with `python app.py`
-- All dependencies MUST be listed in `requirements.txt`
+- The entry point MUST be `{entry_point}` — startable directly
+- All dependencies MUST be listed in `{deps_file}`
 - Use an in-process database (SQLite) unless the backend spec says otherwise
-- Do NOT use async — the test client uses synchronous httpx
+- Do NOT generate pytest.ini, conftest.py, setup.cfg, or pyproject.toml — those belong to the test repo
+- Only generate {entry_point}, {deps_file}, and any helper modules your implementation needs
+{extra_constraints}
 
 ## Output format
 Output each file wrapped in <file> tags:
 
-<file path="requirements.txt">
+<file path="{deps_file}">
 dependency1
 dependency2
 </file>
 
-<file path="app.py">
+<file path="{entry_point}">
 # main application code
 </file>
 
-<file path="models.py">
-# if needed
-</file>
-
-You may create as many files as needed, but `app.py` must be the entry point
-and `requirements.txt` must list all pip-installable dependencies.
+You may create as many files as needed, but `{entry_point}` must be the entry point
+and `{deps_file}` must list all dependencies.
 
 Generate the COMPLETE implementation. Do not leave placeholders or TODOs.
 """
@@ -84,5 +82,5 @@ The implementation failed {failure_count} test(s). Fix the issues.
 {current_code}
 
 Output ALL files in the same <file path="..."> format, even unchanged ones.
-The entry point must remain `app.py`.
+The entry point must remain the same file name.
 """

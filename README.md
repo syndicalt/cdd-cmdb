@@ -14,9 +14,26 @@ Traditional CMDB products are monolithic, hard to customize, and create vendor l
 
 ## Quickstart
 
+### One command (demo script)
+
 ```bash
-# Clone and install
 git clone <repo-url> && cd cdd-cmdb
+./demo.sh
+```
+
+This installs dependencies, starts the reference CMDB server, runs the validation suite, and leaves the server running for you to interact with. No API keys required.
+
+### One command (Docker)
+
+```bash
+docker compose up --build
+```
+
+Starts the server and runs the full test suite in containers. Exit code 0 = compliant.
+
+### Manual
+
+```bash
 pip install -e ".[generator]"
 
 # Generate a CMDB (requires ANTHROPIC_API_KEY)
@@ -62,9 +79,9 @@ CMDB_BASE_URL=http://localhost:8080 pytest -c profiles/standard.ini
 The generator is a CLI that automates the generate-test-fix loop:
 
 1. Reads the OpenAPI spec, JSON schemas, and test suite source
-2. Prompts Claude to produce a complete server implementation
+2. Prompts an LLM to produce a complete server implementation
 3. Starts the server, runs the test suite against it
-4. On failure, feeds errors back to Claude and iterates
+4. On failure, feeds errors back to the LLM and iterates
 5. Repeats until all tests pass or `--max-iterations` is exhausted
 
 ```bash
@@ -74,7 +91,76 @@ python -m generator --profile enterprise --model claude-opus-4-6 --max-iteration
 python -m generator --output ./my-cmdb --port 9000
 ```
 
-The generated server is a standalone Python app with its own venv. It has no runtime dependency on this repository.
+The generated server is standalone with no runtime dependency on this repository.
+
+### Multi-Backend Support
+
+Generate implementations in different languages, frameworks, and databases:
+
+```bash
+python -m generator --backend python/fastapi/sqlite          # default
+python -m generator --backend python/flask/postgres
+python -m generator --backend go/gin/sqlite
+python -m generator --backend node/express/sqlite
+python -m generator --backend node/express/mongodb
+python -m generator --backend node/fastify/sqlite
+python -m generator --list-backends                          # show all known backends
+```
+
+Custom backends are also supported — any `language/framework/database` triple works.
+
+### Multi-Model Support
+
+Use any LLM provider, not just Anthropic:
+
+```bash
+# Anthropic (default)
+python -m generator --model claude-sonnet-4-6
+
+# OpenAI
+pip install openai
+python -m generator --model gpt-4o
+
+# Google Gemini
+pip install google-genai
+python -m generator --model gemini-2.0-flash
+
+# Ollama (local, air-gapped)
+python -m generator --model ollama/llama3
+
+# LM Studio (local)
+python -m generator --model lmstudio/default
+
+# Explicit provider override
+python -m generator --model my-custom-model --provider openai
+```
+
+Provider is auto-detected from model name prefix. Install the appropriate SDK:
+`pip install -e ".[openai]"`, `pip install -e ".[gemini]"`, or `pip install -e ".[all-providers]"`.
+
+### Caching
+
+After a successful generation, the artifact is cached. Subsequent runs with the same profile + backend + unchanged tests will restore from cache instantly:
+
+```bash
+python -m generator --profile minimal          # generates and caches
+python -m generator --profile minimal          # instant restore from cache
+python -m generator --profile minimal --no-cache   # force regeneration
+python -m generator --clear-cache              # delete all cached artifacts
+```
+
+Cache is invalidated automatically when specs, tests, or harness code change.
+
+### Compliance Badges
+
+Generate SVG badges showing which compliance tiers your instance satisfies:
+
+```bash
+python -m generator --badge                           # badge in output dir
+python -m generator --badge --badge-dir ./badges      # custom badge dir
+```
+
+Produces `badge-{profile}.svg` and `compliance-{profile}.json`.
 
 ## API Surface
 
@@ -131,7 +217,11 @@ The test suites collectively define the following REST API:
 | `CMDB_SLA_HEALTH_MS` | Max latency for health check | `200` |
 | `CMDB_SLA_BULK_100_MS` | Max time for bulk create of 100 CIs | `5000` |
 | `CMDB_SLA_SEQ_50_MS` | Max time for 50 sequential CRUD cycles | `10000` |
-| `ANTHROPIC_API_KEY` | Required for the generator | — |
+| `ANTHROPIC_API_KEY` | Required for Anthropic models | — |
+| `OPENAI_API_KEY` | Required for OpenAI models | — |
+| `GOOGLE_API_KEY` | Required for Gemini models | — |
+| `OLLAMA_BASE_URL` | Ollama API endpoint | `http://localhost:11434/v1` |
+| `LMSTUDIO_BASE_URL` | LM Studio API endpoint | `http://localhost:1234/v1` |
 
 ## Project Structure
 

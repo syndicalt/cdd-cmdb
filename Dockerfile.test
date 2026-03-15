@@ -1,0 +1,16 @@
+# Test runner — validates a CMDB instance against the spec's test suite.
+# Used by docker-compose.yml to run the validation suite.
+FROM python:3.12-slim
+
+WORKDIR /spec
+
+# Install test dependencies
+COPY pyproject.toml .
+COPY harness/ harness/
+COPY suites/ suites/
+COPY profiles/ profiles/
+COPY conftest.py .
+
+RUN pip install --no-cache-dir httpx pytest hypothesis
+
+CMD ["python", "-m", "pytest", "suites/", "--tb=short", "-q"]

@@ -1,0 +1,28 @@
+# One-command demo: docker compose up --build
+#
+# Starts the CMDB server and runs the full validation suite.
+# Exit code 0 = all tests pass, the implementation is compliant.
+
+services:
+  cmdb:
+    build: .
+    ports:
+      - "9090:9090"
+    environment:
+      - PORT=9090
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9090/health')"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  validate:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    depends_on:
+      cmdb:
+        condition: service_healthy
+    environment:
+      - CMDB_BASE_URL=http://cmdb:9090
+      - HYPOTHESIS_PROFILE=ci
