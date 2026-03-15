@@ -12,7 +12,7 @@ from __future__ import annotations
 import pytest
 from hypothesis import given
 
-from harness.client import CMDBClient, NotFoundError, ConflictError
+from harness.client import CMDBClient, ConflictError, NotFoundError
 from harness.factories.ci_factory import ci_input_strategy, relationship_type_strategy
 
 

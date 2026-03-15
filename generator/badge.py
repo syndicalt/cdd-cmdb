@@ -9,7 +9,6 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-
 # Color scheme per profile
 _COLORS = {
     "minimal": "#4c1",       # green
@@ -30,28 +29,39 @@ def _svg_badge(label: str, status: str, color: str) -> str:
     status_width = len(status) * 6.5 + 12
     total_width = label_width + status_width
 
-    return f"""\
-<svg xmlns="http://www.w3.org/2000/svg" width="{total_width}" height="20" role="img" aria-label="{label}: {status}">
-  <title>{label}: {status}</title>
-  <linearGradient id="s" x2="0" y2="100%">
-    <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
-    <stop offset="1" stop-opacity=".1"/>
-  </linearGradient>
-  <clipPath id="r">
-    <rect width="{total_width}" height="20" rx="3" fill="#fff"/>
-  </clipPath>
-  <g clip-path="url(#r)">
-    <rect width="{label_width}" height="20" fill="#555"/>
-    <rect x="{label_width}" width="{status_width}" height="20" fill="{color}"/>
-    <rect width="{total_width}" height="20" fill="url(#s)"/>
-  </g>
-  <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="11">
-    <text aria-hidden="true" x="{label_width / 2}" y="15" fill="#010101" fill-opacity=".3">{label}</text>
-    <text x="{label_width / 2}" y="14">{label}</text>
-    <text aria-hidden="true" x="{label_width + status_width / 2}" y="15" fill="#010101" fill-opacity=".3">{status}</text>
-    <text x="{label_width + status_width / 2}" y="14">{status}</text>
-  </g>
-</svg>"""
+    lw = label_width
+    sw = status_width
+    tw = total_width
+    font = "Verdana,Geneva,DejaVu Sans,sans-serif"
+    shadow = 'fill="#010101" fill-opacity=".3"'
+
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{tw}" height="20"'
+        f' role="img" aria-label="{label}: {status}">\n'
+        f"  <title>{label}: {status}</title>\n"
+        f'  <linearGradient id="s" x2="0" y2="100%">\n'
+        f'    <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>\n'
+        f'    <stop offset="1" stop-opacity=".1"/>\n'
+        f"  </linearGradient>\n"
+        f'  <clipPath id="r">\n'
+        f'    <rect width="{tw}" height="20" rx="3" fill="#fff"/>\n'
+        f"  </clipPath>\n"
+        f'  <g clip-path="url(#r)">\n'
+        f'    <rect width="{lw}" height="20" fill="#555"/>\n'
+        f'    <rect x="{lw}" width="{sw}" height="20" fill="{color}"/>\n'
+        f'    <rect width="{tw}" height="20" fill="url(#s)"/>\n'
+        f"  </g>\n"
+        f'  <g fill="#fff" text-anchor="middle" font-family="{font}"'
+        f' text-rendering="geometricPrecision" font-size="11">\n'
+        f'    <text aria-hidden="true" x="{lw / 2}" y="15"'
+        f" {shadow}>{label}</text>\n"
+        f'    <text x="{lw / 2}" y="14">{label}</text>\n'
+        f'    <text aria-hidden="true" x="{lw + sw / 2}" y="15"'
+        f" {shadow}>{status}</text>\n"
+        f'    <text x="{lw + sw / 2}" y="14">{status}</text>\n'
+        f"  </g>\n"
+        f"</svg>"
+    )
 
 
 def generate_badge(

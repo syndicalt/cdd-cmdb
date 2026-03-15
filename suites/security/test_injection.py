@@ -13,11 +13,10 @@ Invariants:
 from __future__ import annotations
 
 import pytest
-from hypothesis import given, settings, HealthCheck
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from harness.client import CMDBClient, CMDBError
-
 
 # Classic injection payloads — not exhaustive, but catches common failures
 SQL_PAYLOADS = [
@@ -143,11 +142,15 @@ class TestMalformedInput:
         assert resp.status_code in (400, 422)
 
     def test_array_body_rejected(self, client: CMDBClient):
-        resp = client._http.post("/cis", content=b"[]", headers={"content-type": "application/json"})
+        headers = {"content-type": "application/json"}
+        resp = client._http.post("/cis", content=b"[]", headers=headers)
         assert resp.status_code in (400, 422)
 
     def test_non_json_body_rejected(self, client: CMDBClient):
-        resp = client._http.post("/cis", content=b"not json", headers={"content-type": "application/json"})
+        headers = {"content-type": "application/json"}
+        resp = client._http.post(
+            "/cis", content=b"not json", headers=headers,
+        )
         assert resp.status_code in (400, 422)
 
     def test_extremely_long_name(self, client: CMDBClient):

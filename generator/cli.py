@@ -73,7 +73,10 @@ badges:
     parser.add_argument(
         "--model",
         default="claude-sonnet-4-6",
-        help="Model ID (default: claude-sonnet-4-6). Prefix with ollama/ or lmstudio/ for local models.",
+        help=(
+            "Model ID (default: claude-sonnet-4-6). "
+            "Prefix with ollama/ or lmstudio/ for local models."
+        ),
     )
     parser.add_argument(
         "--provider",
@@ -127,7 +130,7 @@ badges:
         print("Known backends:")
         for b in list_backends():
             print(f"  {b}")
-        print(f"\nCustom backends also supported: language/framework/database")
+        print("\nCustom backends also supported: language/framework/database")
         sys.exit(0)
 
     if args.clear_cache:

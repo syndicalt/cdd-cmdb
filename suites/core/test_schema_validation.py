@@ -9,7 +9,6 @@ The CMDB must enforce the CI input schema at the API boundary:
 """
 from __future__ import annotations
 
-import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 

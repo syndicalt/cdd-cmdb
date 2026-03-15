@@ -12,9 +12,10 @@ Invariants:
 from __future__ import annotations
 
 import os
+
 import pytest
 
-from harness.client import CMDBClient, CMDBError
+from harness.client import CMDBClient
 
 # Skip entire module if auth is not enabled for this instance
 pytestmark = pytest.mark.skipif(

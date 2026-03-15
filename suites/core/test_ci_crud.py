@@ -10,6 +10,7 @@ Invariants verified:
 from __future__ import annotations
 
 import re
+
 import pytest
 from hypothesis import given
 

@@ -223,7 +223,10 @@ def parse_backend(backend_str: str) -> BackendSpec:
             language=lang, framework=framework, database=db,
             entry_point="app.py", deps_file="requirements.txt",
             install_cmd=[], start_cmd=[], needs_venv=False,
-            extra_constraints=f"- Use {lang} with {framework} and {db}. Choose appropriate entry point and dependency file.",
+            extra_constraints=(
+                f"- Use {lang} with {framework} and {db}. "
+                f"Choose appropriate entry point and dependency file."
+            ),
         )
 
 

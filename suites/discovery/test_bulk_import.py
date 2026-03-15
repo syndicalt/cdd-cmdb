@@ -15,11 +15,10 @@ Invariants:
 from __future__ import annotations
 
 import pytest
-from hypothesis import given, settings, HealthCheck
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from harness.client import CMDBClient, CI, CMDBError
-from harness.factories.ci_factory import ci_input_strategy
+from harness.client import CMDBClient, CMDBError
 
 
 class TestBulkCreate:

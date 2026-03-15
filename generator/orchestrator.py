@@ -6,18 +6,18 @@ import subprocess
 import sys
 from pathlib import Path
 
-from generator.backends import BackendSpec, parse_backend
-from generator.context import build_context, REPO_ROOT
-from generator.prompts import SYSTEM_PROMPT, GENERATE_PROMPT, FIX_PROMPT
-from generator.providers import LLMProvider, create_provider
+from generator.backends import parse_backend
+from generator.context import REPO_ROOT, build_context
+from generator.prompts import FIX_PROMPT, GENERATE_PROMPT, SYSTEM_PROMPT
+from generator.providers import create_provider
 from generator.server import (
-    setup_venv,
+    read_generated_code,
     setup_non_python,
-    start_server,
+    setup_venv,
     start_non_python_server,
+    start_server,
     stop_server,
     wait_for_health,
-    read_generated_code,
 )
 
 
@@ -95,7 +95,10 @@ def run_tests(profile: str, port: int) -> tuple[bool, str, int]:
         output = result.stdout + "\n" + result.stderr
         success = result.returncode == 0
     except subprocess.TimeoutExpired:
-        output = "pytest timed out after 300 seconds. Tests may be hanging (infinite loop, unresponsive server, or slow Hypothesis generation)."
+        output = (
+            "pytest timed out after 300 seconds. Tests may be hanging "
+            "(infinite loop, unresponsive server, or slow Hypothesis generation)."
+        )
         success = False
 
     # Count failures from pytest output
@@ -227,6 +230,9 @@ class Orchestrator:
             deps_file=bs.deps_file,
             extra_constraints=bs.extra_constraints,
         )
+
+        failure_count = 0
+        test_output = ""
 
         for iteration in range(1, self.max_iterations + 1):
             print(f"\n{'='*60}")

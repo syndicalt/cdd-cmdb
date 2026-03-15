@@ -14,7 +14,8 @@ the authoritative specification.
 - The entry point MUST be `{entry_point}` — startable directly
 - All dependencies MUST be listed in `{deps_file}`
 - Use an in-process database (SQLite) unless the backend spec says otherwise
-- Do NOT generate pytest.ini, conftest.py, setup.cfg, or pyproject.toml — those belong to the test repo
+- Do NOT generate pytest.ini, conftest.py, setup.cfg, or pyproject.toml\
+ — those belong to the test repo
 - Only generate {entry_point}, {deps_file}, and any helper modules your implementation needs
 {extra_constraints}
 

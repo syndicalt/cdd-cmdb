@@ -14,6 +14,7 @@ Impact of web_server_1 failure: only load_balancer is affected upstream.
 from __future__ import annotations
 
 import pytest
+
 from harness.client import CMDBClient
 
 

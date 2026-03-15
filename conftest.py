@@ -7,10 +7,11 @@ Configuration via environment variables:
 from __future__ import annotations
 
 import os
-import pytest
-from hypothesis import settings, HealthCheck
 
-from harness.client import CMDBClient, CI, Relationship
+import pytest
+from hypothesis import HealthCheck, settings
+
+from harness.client import CI, CMDBClient, Relationship
 
 # ---------------------------------------------------------------------------
 # Hypothesis profiles
