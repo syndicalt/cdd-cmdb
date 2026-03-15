@@ -17,7 +17,7 @@ class LLMProvider(ABC):
     """Base class for LLM providers."""
 
     @abstractmethod
-    def generate(self, system: str, user: str, max_tokens: int = 16384) -> str:
+    def generate(self, system: str, user: str, max_tokens: int = 32768) -> str:
         """Send a prompt and return the text response."""
 
     @property
@@ -32,7 +32,7 @@ class AnthropicProvider(LLMProvider):
         self._model = model
         self._client = anthropic.Anthropic()
 
-    def generate(self, system: str, user: str, max_tokens: int = 16384) -> str:
+    def generate(self, system: str, user: str, max_tokens: int = 32768) -> str:
         response = self._client.messages.create(
             model=self._model,
             max_tokens=max_tokens,
@@ -52,7 +52,7 @@ class OpenAIProvider(LLMProvider):
         self._model = model
         self._client = OpenAI()
 
-    def generate(self, system: str, user: str, max_tokens: int = 16384) -> str:
+    def generate(self, system: str, user: str, max_tokens: int = 32768) -> str:
         response = self._client.chat.completions.create(
             model=self._model,
             max_tokens=max_tokens,
@@ -74,7 +74,7 @@ class GeminiProvider(LLMProvider):
         self._model = model
         self._client = genai.Client()
 
-    def generate(self, system: str, user: str, max_tokens: int = 16384) -> str:
+    def generate(self, system: str, user: str, max_tokens: int = 32768) -> str:
         from google.genai import types
         response = self._client.models.generate_content(
             model=self._model,
@@ -100,7 +100,7 @@ class OllamaProvider(LLMProvider):
         self._model = model
         self._client = OpenAI(base_url=base_url, api_key="ollama")
 
-    def generate(self, system: str, user: str, max_tokens: int = 16384) -> str:
+    def generate(self, system: str, user: str, max_tokens: int = 32768) -> str:
         response = self._client.chat.completions.create(
             model=self._model,
             max_tokens=max_tokens,
@@ -125,7 +125,7 @@ class LMStudioProvider(LLMProvider):
         self._model = model
         self._client = OpenAI(base_url=base_url, api_key="lm-studio")
 
-    def generate(self, system: str, user: str, max_tokens: int = 16384) -> str:
+    def generate(self, system: str, user: str, max_tokens: int = 32768) -> str:
         response = self._client.chat.completions.create(
             model=self._model,
             max_tokens=max_tokens,

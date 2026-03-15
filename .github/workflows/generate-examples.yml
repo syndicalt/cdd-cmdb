@@ -38,7 +38,7 @@ permissions:
 jobs:
   generate:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     strategy:
       fail-fast: false
@@ -47,12 +47,15 @@ jobs:
           - profile: minimal
             backend: python/fastapi/sqlite
             dir: minimal-fastapi
+            max_iters: 5
           - profile: minimal
             backend: python/flask/sqlite
             dir: minimal-flask
+            max_iters: 5
           - profile: standard
             backend: python/fastapi/sqlite
             dir: standard-fastapi
+            max_iters: 8
 
     # Skip matrix entries that don't match workflow_dispatch inputs
     # (when triggered by push, all entries run)
@@ -93,7 +96,7 @@ jobs:
             --backend "${{ matrix.backend }}" \
             --output examples/${{ matrix.dir }} \
             --port 9090 \
-            --max-iterations 5 \
+            --max-iterations ${{ matrix.max_iters }} \
             --badge \
             --badge-dir examples/${{ matrix.dir }}
 
