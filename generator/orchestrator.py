@@ -250,8 +250,8 @@ class Orchestrator:
             else:
                 # Cooldown between iterations to respect rate limits
                 import time
-                print("Waiting 60s for rate limit cooldown...")
-                time.sleep(60)
+                print("Waiting 30s for rate limit cooldown...")
+                time.sleep(30)
 
                 print("Generating fix...")
                 current_code = read_generated_code(self.output_dir)
