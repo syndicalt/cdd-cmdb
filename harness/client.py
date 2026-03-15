@@ -71,6 +71,7 @@ class CI:
     name: str
     type: str
     attributes: dict[str, Any] = field(default_factory=dict)
+    tags: list[str] = field(default_factory=list)
     created_at: str = ""
     updated_at: str = ""
 
@@ -81,6 +82,7 @@ class CI:
             name=d["name"],
             type=d["type"],
             attributes=d.get("attributes") or {},
+            tags=d.get("tags") or [],
             created_at=d.get("created_at", ""),
             updated_at=d.get("updated_at", ""),
         )
@@ -142,6 +144,73 @@ class Relationship:
             type=d["type"],
             attributes=d.get("attributes") or {},
             created_at=d.get("created_at", ""),
+        )
+
+
+@dataclass
+class TagSummary:
+    tag: str
+    count: int
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "TagSummary":
+        return cls(tag=d["tag"], count=d["count"])
+
+
+@dataclass
+class TTLInfo:
+    ci_id: str
+    expires_at: str
+    status: str  # "active", "expired"
+    last_seen: str = ""
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "TTLInfo":
+        return cls(
+            ci_id=d["ci_id"],
+            expires_at=d.get("expires_at", ""),
+            status=d.get("status", "active"),
+            last_seen=d.get("last_seen", ""),
+        )
+
+
+@dataclass
+class Webhook:
+    id: str
+    url: str
+    events: list[str] = field(default_factory=list)
+    active: bool = True
+    created_at: str = ""
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "Webhook":
+        return cls(
+            id=d["id"],
+            url=d["url"],
+            events=d.get("events") or [],
+            active=d.get("active", True),
+            created_at=d.get("created_at", ""),
+        )
+
+
+@dataclass
+class WebhookDelivery:
+    id: str
+    webhook_id: str
+    event: str
+    success: bool = False
+    status_code: int | None = None
+    timestamp: str = ""
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "WebhookDelivery":
+        return cls(
+            id=d["id"],
+            webhook_id=d["webhook_id"],
+            event=d.get("event", ""),
+            success=d.get("success", False),
+            status_code=d.get("status_code"),
+            timestamp=d.get("timestamp", ""),
         )
 
 
@@ -306,6 +375,8 @@ class CMDBClient:
         type: str | None = None,
         attribute_filters: dict[str, str] | None = None,
         sort: str | None = None,
+        tag: str | None = None,
+        status: str | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[CI]:
@@ -319,6 +390,10 @@ class CMDBClient:
             params["type"] = type
         if sort is not None:
             params["sort"] = sort
+        if tag is not None:
+            params["tag"] = tag
+        if status is not None:
+            params["status"] = status
         if attribute_filters:
             for key, value in attribute_filters.items():
                 params[f"attributes.{key}"] = value
@@ -379,6 +454,93 @@ class CMDBClient:
         })
         _raise(resp)
         return resp.json()
+
+    # --- Tags ---
+
+    def set_ci_tags(self, ci_id: str, tags: list[str]) -> list[str]:
+        """PUT /cis/{id}/tags — full replacement."""
+        resp = self._http.put(f"/cis/{ci_id}/tags", json={"tags": tags})
+        _raise(resp)
+        return resp.json().get("tags", [])
+
+    def get_ci_tags(self, ci_id: str) -> list[str]:
+        """GET /cis/{id}/tags"""
+        resp = self._http.get(f"/cis/{ci_id}/tags")
+        _raise(resp)
+        return resp.json().get("tags", [])
+
+    def remove_ci_tag(self, ci_id: str, tag: str) -> None:
+        """DELETE /cis/{id}/tags/{tag}"""
+        resp = self._http.delete(f"/cis/{ci_id}/tags/{tag}")
+        _raise(resp)
+
+    def list_tags(self) -> list[TagSummary]:
+        """GET /tags — all known tags with usage counts."""
+        resp = self._http.get("/tags")
+        _raise(resp)
+        return [TagSummary.from_dict(t) for t in resp.json()["items"]]
+
+    # --- TTL / Expiry ---
+
+    def set_ci_ttl(self, ci_id: str, expires_at: str) -> TTLInfo:
+        """PUT /cis/{id}/ttl"""
+        resp = self._http.put(f"/cis/{ci_id}/ttl", json={"expires_at": expires_at})
+        _raise(resp)
+        return TTLInfo.from_dict(resp.json())
+
+    def get_ci_ttl(self, ci_id: str) -> TTLInfo:
+        """GET /cis/{id}/ttl"""
+        resp = self._http.get(f"/cis/{ci_id}/ttl")
+        _raise(resp)
+        return TTLInfo.from_dict(resp.json())
+
+    def remove_ci_ttl(self, ci_id: str) -> None:
+        """DELETE /cis/{id}/ttl"""
+        resp = self._http.delete(f"/cis/{ci_id}/ttl")
+        _raise(resp)
+
+    def trigger_expiry(self) -> dict:
+        """POST /cis/expire — returns {expired: int}"""
+        resp = self._http.post("/cis/expire", json={})
+        _raise(resp)
+        return resp.json()
+
+    # --- Webhooks ---
+
+    def create_webhook(self, url: str, events: list[str]) -> Webhook:
+        """POST /webhooks"""
+        resp = self._http.post("/webhooks", json={"url": url, "events": events})
+        _raise(resp)
+        return Webhook.from_dict(resp.json())
+
+    def list_webhooks(self) -> list[Webhook]:
+        """GET /webhooks"""
+        resp = self._http.get("/webhooks")
+        _raise(resp)
+        return [Webhook.from_dict(w) for w in resp.json()["items"]]
+
+    def get_webhook(self, webhook_id: str) -> Webhook:
+        """GET /webhooks/{id}"""
+        resp = self._http.get(f"/webhooks/{webhook_id}")
+        _raise(resp)
+        return Webhook.from_dict(resp.json())
+
+    def delete_webhook(self, webhook_id: str) -> None:
+        """DELETE /webhooks/{id}"""
+        resp = self._http.delete(f"/webhooks/{webhook_id}")
+        _raise(resp)
+
+    def get_webhook_deliveries(self, webhook_id: str) -> list[WebhookDelivery]:
+        """GET /webhooks/{id}/deliveries"""
+        resp = self._http.get(f"/webhooks/{webhook_id}/deliveries")
+        _raise(resp)
+        return [WebhookDelivery.from_dict(d) for d in resp.json()["items"]]
+
+    def test_webhook(self, webhook_id: str) -> WebhookDelivery:
+        """POST /webhooks/{id}/test — triggers a ping delivery."""
+        resp = self._http.post(f"/webhooks/{webhook_id}/test", json={})
+        _raise(resp)
+        return WebhookDelivery.from_dict(resp.json())
 
     # --- Raw access (for validation / negative tests only) ---
 

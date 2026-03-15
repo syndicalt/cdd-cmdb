@@ -45,7 +45,7 @@ trap cleanup EXIT
 profile_testpaths() {
     case "$1" in
         minimal)    echo "suites/core" ;;
-        standard)   echo "suites/core suites/discovery suites/audit suites/graph suites/search suites/diff suites/reconciliation" ;;
+        standard)   echo "suites/core suites/discovery suites/audit suites/graph suites/search suites/diff suites/reconciliation suites/tags suites/ttl suites/webhooks" ;;
         enterprise) echo "suites" ;;
         *)          echo "suites/core" ;;
     esac

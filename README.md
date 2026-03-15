@@ -54,6 +54,9 @@ Tests are organized into modules, each covering a distinct capability:
 | `search/` | Full-text search, attribute filtering, wildcards, sorting, pagination |
 | `diff/` | Attribute-level change diffs, point-in-time snapshots, time-range queries |
 | `reconciliation/` | Source-based reconciliation (new/updated/unchanged/stale detection) |
+| `tags/` | Tag CRUD, tag-based search, tag listing with counts |
+| `ttl/` | Per-CI time-to-live, expiry sweep, status filtering |
+| `webhooks/` | Webhook subscriptions, test pings, delivery history |
 | `security/` | Injection resistance (SQL, XSS, NoSQL, template, path traversal), auth, RBAC |
 | `discovery/` | Bulk CI import, source metadata |
 | `performance/` | Latency SLAs per operation, throughput under bulk load |
@@ -68,13 +71,13 @@ Profiles are compliance tiers. Each selects a subset of suites:
 | Profile | Suites | Use case |
 |---|---|---|
 | `minimal` | core | MVP — prove basic CRUD works |
-| `standard` | core, discovery, audit, graph, search, diff, reconciliation | Production-grade with full data model |
+| `standard` | core, discovery, audit, graph, search, diff, reconciliation, tags, ttl, webhooks | Production-grade with full data model |
 | `enterprise` | all | Full compliance including security, performance, governance |
 
 Run a profile:
 
 ```bash
-CMDB_BASE_URL=http://localhost:8080 pytest suites/core suites/discovery suites/audit suites/graph suites/search suites/diff suites/reconciliation --tb=short -q
+CMDB_BASE_URL=http://localhost:8080 pytest suites/core suites/discovery suites/audit suites/graph suites/search suites/diff suites/reconciliation suites/tags suites/ttl suites/webhooks --tb=short -q
 ```
 
 ## The Generator
@@ -188,6 +191,25 @@ The test suites collectively define the following REST API:
 | `GET` | `/cis/{id}/history/{entry_id}/diff` | Attribute-level diff for a specific audit entry |
 | `GET` | `/cis/{id}/history/{entry_id}/snapshot` | Full CI state at a specific audit entry |
 | `POST` | `/cis/reconcile` | Reconcile CIs from an external source |
+| `PUT` | `/cis/{id}/tags` | Set tags on a CI |
+| `GET` | `/cis/{id}/tags` | Get tags for a CI |
+| `DELETE` | `/cis/{id}/tags/{tag}` | Remove a single tag |
+| `GET` | `/tags` | List all tags with usage counts |
+| `PUT` | `/cis/{id}/ttl` | Set time-to-live on a CI |
+| `GET` | `/cis/{id}/ttl` | Get TTL info for a CI |
+| `DELETE` | `/cis/{id}/ttl` | Remove TTL from a CI |
+| `POST` | `/cis/expire` | Sweep and expire CIs past their TTL |
+
+### Webhooks
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/webhooks` | Register a webhook subscription |
+| `GET` | `/webhooks` | List all webhooks |
+| `GET` | `/webhooks/{id}` | Get a webhook |
+| `DELETE` | `/webhooks/{id}` | Delete a webhook |
+| `POST` | `/webhooks/{id}/test` | Trigger a test ping |
+| `GET` | `/webhooks/{id}/deliveries` | Delivery history for a webhook |
 
 ### Relationships
 

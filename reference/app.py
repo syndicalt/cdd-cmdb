@@ -87,6 +87,39 @@ def init_db():
                 created_at TEXT NOT NULL
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ci_tags (
+                ci_id TEXT NOT NULL,
+                tag TEXT NOT NULL,
+                PRIMARY KEY (ci_id, tag)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ci_ttl (
+                ci_id TEXT PRIMARY KEY,
+                expires_at TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'active'
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS webhooks (
+                id TEXT PRIMARY KEY,
+                url TEXT NOT NULL,
+                events TEXT NOT NULL DEFAULT '[]',
+                active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS webhook_deliveries (
+                id TEXT PRIMARY KEY,
+                webhook_id TEXT NOT NULL,
+                event TEXT NOT NULL,
+                success INTEGER NOT NULL DEFAULT 0,
+                status_code INTEGER,
+                timestamp TEXT NOT NULL
+            )
+        """)
 
 
 # ---------------------------------------------------------------------------
@@ -116,8 +149,8 @@ def sanitize_string_value(v: Any) -> Any:
     return v
 
 
-def ci_row_to_dict(row: sqlite3.Row) -> dict:
-    return {
+def ci_row_to_dict(row: sqlite3.Row, conn: sqlite3.Connection | None = None) -> dict:
+    d = {
         "id": row["id"],
         "name": row["name"],
         "type": row["type"],
@@ -125,6 +158,14 @@ def ci_row_to_dict(row: sqlite3.Row) -> dict:
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
+    if conn is not None:
+        tags = conn.execute(
+            "SELECT tag FROM ci_tags WHERE ci_id=? ORDER BY tag", (row["id"],)
+        ).fetchall()
+        d["tags"] = [t["tag"] for t in tags]
+    else:
+        d["tags"] = []
+    return d
 
 
 def rel_row_to_dict(row: sqlite3.Row) -> dict:
@@ -446,7 +487,7 @@ def list_cis(
             params + [limit, offset],
         ).fetchall()
 
-    return {"items": [ci_row_to_dict(r) for r in rows], "total": total}
+        return {"items": [ci_row_to_dict(r, conn) for r in rows], "total": total}
 
 
 # ---------------------------------------------------------------------------
@@ -460,6 +501,8 @@ def search_cis(request: Request):
     name_filter = params.pop("name", None)
     type_filter = params.pop("type", None)
     sort_param = params.pop("sort", None)
+    tag_filter = params.pop("tag", None)
+    status_filter = params.pop("status", None)
     limit = int(params.pop("limit", "100"))
     offset = int(params.pop("offset", "0"))
 
@@ -473,42 +516,55 @@ def search_cis(request: Request):
     with db() as conn:
         rows = conn.execute("SELECT * FROM cis").fetchall()
 
-    results = []
-    for row in rows:
-        ci = ci_row_to_dict(row)
-        attrs = ci["attributes"]
+        results = []
+        for row in rows:
+            ci = ci_row_to_dict(row, conn)
+            attrs = ci["attributes"]
 
-        # Type filter
-        if type_filter and ci["type"] != type_filter:
-            continue
-
-        # Name wildcard filter
-        if name_filter:
-            if not fnmatch.fnmatch(ci["name"], name_filter):
+            # Type filter
+            if type_filter and ci["type"] != type_filter:
                 continue
 
-        # Attribute filters (all must match)
-        if attr_filters:
-            match = True
-            for ak, av in attr_filters.items():
-                if str(attrs.get(ak, "")) != av:
-                    match = False
-                    break
-            if not match:
+            # Name wildcard filter
+            if name_filter:
+                if not fnmatch.fnmatch(ci["name"], name_filter):
+                    continue
+
+            # Tag filter
+            if tag_filter and tag_filter not in ci.get("tags", []):
                 continue
 
-        # Full-text search (q)
-        if q is not None and q != "":
-            q_lower = q.lower()
-            searchable = (
-                ci["name"].lower()
-                + " " + ci["type"].lower()
-                + " " + " ".join(str(v).lower() for v in attrs.values())
-            )
-            if q_lower not in searchable:
-                continue
+            # Status filter (active/expired via TTL)
+            if status_filter:
+                ttl_row = conn.execute(
+                    "SELECT status FROM ci_ttl WHERE ci_id=?", (ci["id"],)
+                ).fetchone()
+                ci_status = ttl_row["status"] if ttl_row else "active"
+                if ci_status != status_filter:
+                    continue
 
-        results.append(ci)
+            # Attribute filters (all must match)
+            if attr_filters:
+                match = True
+                for ak, av in attr_filters.items():
+                    if str(attrs.get(ak, "")) != av:
+                        match = False
+                        break
+                if not match:
+                    continue
+
+            # Full-text search (q)
+            if q is not None and q != "":
+                q_lower = q.lower()
+                searchable = (
+                    ci["name"].lower()
+                    + " " + ci["type"].lower()
+                    + " " + " ".join(str(v).lower() for v in attrs.values())
+                )
+                if q_lower not in searchable:
+                    continue
+
+            results.append(ci)
 
     # Sorting
     if sort_param:
@@ -674,7 +730,7 @@ def get_ci_impact(
         for ci_id in result_ids:
             r = conn.execute("SELECT * FROM cis WHERE id=?", (ci_id,)).fetchone()
             if r:
-                items.append(ci_row_to_dict(r))
+                items.append(ci_row_to_dict(r, conn))
 
     return {"items": items}
 
@@ -729,7 +785,7 @@ def get_ci_dependencies(
         for ci_id in result_ids:
             r = conn.execute("SELECT * FROM cis WHERE id=?", (ci_id,)).fetchone()
             if r:
-                items.append(ci_row_to_dict(r))
+                items.append(ci_row_to_dict(r, conn))
 
     return {"items": items}
 
@@ -777,12 +833,12 @@ def get_ci_relationships(
 def get_ci(id: str):
     with db() as conn:
         row = conn.execute("SELECT * FROM cis WHERE id=?", (id,)).fetchone()
-    if row is None:
-        raise HTTPException(
-            status_code=404,
-            detail={"error": "NotFound", "message": f"CI '{id}' not found"},
-        )
-    return ci_row_to_dict(row)
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": "NotFound", "message": f"CI '{id}' not found"},
+            )
+        return ci_row_to_dict(row, conn)
 
 
 @app.put("/cis/{id}")
@@ -861,7 +917,7 @@ def delete_ci(id: str):
             )
         # Grab full CI before deleting for audit snapshot
         full_row = conn.execute("SELECT * FROM cis WHERE id=?", (id,)).fetchone()
-        delete_snapshot = ci_row_to_dict(full_row) if full_row else {}
+        delete_snapshot = ci_row_to_dict(full_row, conn) if full_row else {}
         conn.execute("DELETE FROM cis WHERE id=?", (id,))
         _add_audit(conn, id, "deleted", {}, snapshot=delete_snapshot)
     return None
@@ -1024,7 +1080,7 @@ def reconcile_cis(body: ReconcileInput):
         all_cis = conn.execute("SELECT * FROM cis").fetchall()
         existing_by_name: dict[str, dict] = {}
         for row in all_cis:
-            ci = ci_row_to_dict(row)
+            ci = ci_row_to_dict(row, conn)
             if ci["attributes"].get("source") == source:
                 existing_by_name[ci["name"]] = ci
 
@@ -1121,6 +1177,333 @@ def reconcile_cis(body: ReconcileInput):
         "updated": updated_items,
         "unchanged": unchanged_items,
         "stale": stale_items,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Tags
+# ---------------------------------------------------------------------------
+
+class TagsInput(BaseModel):
+    tags: list[str]
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def validate_tags(cls, v: Any) -> list[str]:
+        if not isinstance(v, list):
+            raise ValueError("tags must be a list")
+        for tag in v:
+            if not isinstance(tag, str):
+                raise ValueError("each tag must be a string")
+            if len(tag) == 0:
+                raise ValueError("tags must not be empty strings")
+        return v
+
+
+@app.put("/cis/{id}/tags")
+def set_ci_tags(id: str, body: TagsInput):
+    with db() as conn:
+        row = conn.execute("SELECT id FROM cis WHERE id=?", (id,)).fetchone()
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": "NotFound", "message": f"CI '{id}' not found"},
+            )
+        # Deduplicate
+        unique_tags = sorted(set(body.tags))
+        conn.execute("DELETE FROM ci_tags WHERE ci_id=?", (id,))
+        for tag in unique_tags:
+            conn.execute("INSERT INTO ci_tags (ci_id, tag) VALUES (?,?)", (id, tag))
+    return {"tags": unique_tags}
+
+
+@app.get("/cis/{id}/tags")
+def get_ci_tags(id: str):
+    with db() as conn:
+        row = conn.execute("SELECT id FROM cis WHERE id=?", (id,)).fetchone()
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": "NotFound", "message": f"CI '{id}' not found"},
+            )
+        tags = conn.execute(
+            "SELECT tag FROM ci_tags WHERE ci_id=? ORDER BY tag", (id,)
+        ).fetchall()
+    return {"tags": [t["tag"] for t in tags]}
+
+
+@app.delete("/cis/{id}/tags/{tag}", status_code=204)
+def remove_ci_tag(id: str, tag: str):
+    with db() as conn:
+        row = conn.execute("SELECT id FROM cis WHERE id=?", (id,)).fetchone()
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": "NotFound", "message": f"CI '{id}' not found"},
+            )
+        existing = conn.execute(
+            "SELECT 1 FROM ci_tags WHERE ci_id=? AND tag=?", (id, tag)
+        ).fetchone()
+        if existing is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": "NotFound", "message": f"Tag '{tag}' not found on CI '{id}'"},
+            )
+        conn.execute("DELETE FROM ci_tags WHERE ci_id=? AND tag=?", (id, tag))
+    return None
+
+
+@app.get("/tags")
+def list_all_tags():
+    with db() as conn:
+        rows = conn.execute(
+            "SELECT tag, COUNT(*) as count FROM ci_tags GROUP BY tag ORDER BY tag"
+        ).fetchall()
+    return {"items": [{"tag": r["tag"], "count": r["count"]} for r in rows]}
+
+
+# ---------------------------------------------------------------------------
+# TTL / Expiry
+# ---------------------------------------------------------------------------
+
+class TTLInput(BaseModel):
+    expires_at: str
+
+    @field_validator("expires_at", mode="before")
+    @classmethod
+    def validate_expires_at(cls, v: Any) -> str:
+        if not isinstance(v, str) or len(v) == 0:
+            raise ValueError("expires_at is required")
+        # Validate ISO 8601
+        try:
+            datetime.fromisoformat(v.replace("Z", "+00:00"))
+        except (ValueError, AttributeError):
+            raise ValueError("expires_at must be a valid ISO 8601 timestamp")
+        return v
+
+
+@app.put("/cis/{id}/ttl")
+def set_ci_ttl(id: str, body: TTLInput):
+    with db() as conn:
+        row = conn.execute("SELECT id FROM cis WHERE id=?", (id,)).fetchone()
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": "NotFound", "message": f"CI '{id}' not found"},
+            )
+        existing = conn.execute("SELECT ci_id FROM ci_ttl WHERE ci_id=?", (id,)).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE ci_ttl SET expires_at=?, status='active' WHERE ci_id=?",
+                (body.expires_at, id),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO ci_ttl (ci_id, expires_at, status) VALUES (?,?,'active')",
+                (id, body.expires_at),
+            )
+    return {"ci_id": id, "expires_at": body.expires_at, "status": "active"}
+
+
+@app.get("/cis/{id}/ttl")
+def get_ci_ttl(id: str):
+    with db() as conn:
+        row = conn.execute("SELECT id FROM cis WHERE id=?", (id,)).fetchone()
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": "NotFound", "message": f"CI '{id}' not found"},
+            )
+        ttl = conn.execute("SELECT * FROM ci_ttl WHERE ci_id=?", (id,)).fetchone()
+        if ttl is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": "NotFound", "message": f"No TTL set for CI '{id}'"},
+            )
+    return {"ci_id": id, "expires_at": ttl["expires_at"], "status": ttl["status"]}
+
+
+@app.delete("/cis/{id}/ttl", status_code=204)
+def remove_ci_ttl(id: str):
+    with db() as conn:
+        row = conn.execute("SELECT id FROM cis WHERE id=?", (id,)).fetchone()
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": "NotFound", "message": f"CI '{id}' not found"},
+            )
+        conn.execute("DELETE FROM ci_ttl WHERE ci_id=?", (id,))
+    return None
+
+
+@app.post("/cis/expire")
+def trigger_expiry():
+    now_dt = datetime.now(timezone.utc)
+    now_str = now_dt.isoformat()
+    with db() as conn:
+        # Find all active TTLs that are past due
+        rows = conn.execute(
+            "SELECT ci_id, expires_at FROM ci_ttl WHERE status='active'"
+        ).fetchall()
+        expired_count = 0
+        for row in rows:
+            expires_dt = datetime.fromisoformat(row["expires_at"].replace("Z", "+00:00"))
+            if expires_dt <= now_dt:
+                conn.execute(
+                    "UPDATE ci_ttl SET status='expired' WHERE ci_id=?",
+                    (row["ci_id"],),
+                )
+                expired_count += 1
+    return {"expired": expired_count}
+
+
+# ---------------------------------------------------------------------------
+# Webhooks
+# ---------------------------------------------------------------------------
+
+class WebhookInput(BaseModel):
+    url: str
+    events: list[str]
+
+    @field_validator("url", mode="before")
+    @classmethod
+    def validate_url(cls, v: Any) -> str:
+        if not isinstance(v, str) or len(v) == 0:
+            raise ValueError("url is required")
+        if not v.startswith(("http://", "https://")):
+            raise ValueError("url must be a valid HTTP/HTTPS URL")
+        return v
+
+    @field_validator("events", mode="before")
+    @classmethod
+    def validate_events(cls, v: Any) -> list[str]:
+        if not isinstance(v, list):
+            raise ValueError("events must be a list")
+        if len(v) == 0:
+            raise ValueError("events must not be empty")
+        return v
+
+
+@app.post("/webhooks", status_code=201)
+def create_webhook(body: WebhookInput):
+    wh_id = new_uuid()
+    ts = now_iso()
+    with db() as conn:
+        conn.execute(
+            "INSERT INTO webhooks (id, url, events, active, created_at) VALUES (?,?,?,?,?)",
+            (wh_id, body.url, json.dumps(body.events), 1, ts),
+        )
+    return {
+        "id": wh_id,
+        "url": body.url,
+        "events": body.events,
+        "active": True,
+        "created_at": ts,
+    }
+
+
+@app.get("/webhooks")
+def list_webhooks():
+    with db() as conn:
+        rows = conn.execute("SELECT * FROM webhooks ORDER BY created_at ASC").fetchall()
+    return {
+        "items": [
+            {
+                "id": r["id"],
+                "url": r["url"],
+                "events": json.loads(r["events"]),
+                "active": bool(r["active"]),
+                "created_at": r["created_at"],
+            }
+            for r in rows
+        ]
+    }
+
+
+@app.get("/webhooks/{id}")
+def get_webhook(id: str):
+    with db() as conn:
+        row = conn.execute("SELECT * FROM webhooks WHERE id=?", (id,)).fetchone()
+    if row is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "NotFound", "message": f"Webhook '{id}' not found"},
+        )
+    return {
+        "id": row["id"],
+        "url": row["url"],
+        "events": json.loads(row["events"]),
+        "active": bool(row["active"]),
+        "created_at": row["created_at"],
+    }
+
+
+@app.delete("/webhooks/{id}", status_code=204)
+def delete_webhook(id: str):
+    with db() as conn:
+        row = conn.execute("SELECT id FROM webhooks WHERE id=?", (id,)).fetchone()
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": "NotFound", "message": f"Webhook '{id}' not found"},
+            )
+        conn.execute("DELETE FROM webhooks WHERE id=?", (id,))
+        conn.execute("DELETE FROM webhook_deliveries WHERE webhook_id=?", (id,))
+    return None
+
+
+@app.get("/webhooks/{id}/deliveries")
+def get_webhook_deliveries(id: str):
+    with db() as conn:
+        row = conn.execute("SELECT id FROM webhooks WHERE id=?", (id,)).fetchone()
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": "NotFound", "message": f"Webhook '{id}' not found"},
+            )
+        deliveries = conn.execute(
+            "SELECT * FROM webhook_deliveries WHERE webhook_id=? ORDER BY timestamp ASC",
+            (id,),
+        ).fetchall()
+    return {
+        "items": [
+            {
+                "id": d["id"],
+                "webhook_id": d["webhook_id"],
+                "event": d["event"],
+                "success": bool(d["success"]),
+                "status_code": d["status_code"],
+                "timestamp": d["timestamp"],
+            }
+            for d in deliveries
+        ]
+    }
+
+
+@app.post("/webhooks/{id}/test")
+def test_webhook(id: str):
+    with db() as conn:
+        row = conn.execute("SELECT * FROM webhooks WHERE id=?", (id,)).fetchone()
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": "NotFound", "message": f"Webhook '{id}' not found"},
+            )
+        delivery_id = new_uuid()
+        ts = now_iso()
+        # Record a test ping delivery (no actual HTTP call needed for spec compliance)
+        conn.execute(
+            "INSERT INTO webhook_deliveries (id, webhook_id, event, success, status_code, timestamp) "
+            "VALUES (?,?,?,?,?,?)",
+            (delivery_id, id, "ping", 1, 200, ts),
+        )
+    return {
+        "id": delivery_id,
+        "webhook_id": id,
+        "event": "ping",
+        "success": True,
+        "status_code": 200,
+        "timestamp": ts,
     }
 
 

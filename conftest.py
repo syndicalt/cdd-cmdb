@@ -11,7 +11,7 @@ import os
 import pytest
 from hypothesis import HealthCheck, settings
 
-from harness.client import CI, CMDBClient, Relationship
+from harness.client import CI, CMDBClient, Relationship, Webhook
 
 # ---------------------------------------------------------------------------
 # Hypothesis profiles
@@ -81,5 +81,30 @@ def make_relationship(client: CMDBClient):
     for rel in reversed(created):
         try:
             client.delete_relationship(rel.id)
+        except Exception:
+            pass
+
+
+@pytest.fixture
+def make_webhook(client: CMDBClient):
+    """Factory fixture: creates a webhook and auto-deletes it after the test."""
+    created: list[Webhook] = []
+
+    def _make(
+        url: str = "https://example.com/hook",
+        events: list[str] | None = None,
+    ) -> Webhook:
+        wh = client.create_webhook(
+            url=url,
+            events=events or ["ci.created", "ci.updated", "ci.deleted"],
+        )
+        created.append(wh)
+        return wh
+
+    yield _make
+
+    for wh in reversed(created):
+        try:
+            client.delete_webhook(wh.id)
         except Exception:
             pass

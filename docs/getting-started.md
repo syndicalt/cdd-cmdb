@@ -5,99 +5,152 @@ title: Getting Started
 
 # Getting Started
 
-## Prerequisites
+This tutorial walks you through running the CDD-CMDB test suite against the reference implementation, exploring the API by hand, and understanding how tests-as-specification works in practice.
 
-- Python 3.12+
-- pip
-- An `ANTHROPIC_API_KEY` (only if using the generator)
+**Time:** ~10 minutes
+**Prerequisites:** Python 3.12+, pip, curl (or any HTTP client)
 
-## Installation
+---
+
+## Step 1: Clone and Install
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/syndicalt/cdd-cmdb.git
 cd cdd-cmdb
-
-# For running tests only
 pip install -e "."
-
-# For running tests + using the generator
-pip install -e ".[generator]"
 ```
 
-## Option A: Validate an Existing Implementation
+This installs the test harness and all test dependencies. No API keys needed.
 
-If you already have a CMDB server running, point the test suite at it:
+## Step 2: Start the Reference Server
+
+The reference implementation is a FastAPI + SQLite server committed to the repo. Start it:
 
 ```bash
-CMDB_BASE_URL=http://localhost:8080 pytest -c profiles/minimal.ini
+PORT=9090 python reference/app.py
 ```
 
-The test suite will exercise your API and report which behaviors pass or fail. The `minimal` profile covers the foundational CRUD operations — start there and work up to `standard` and `enterprise`.
-
-## Option B: Generate a New Implementation
-
-If you don't have an implementation yet, the generator will create one:
+In a **second terminal**, verify it's alive:
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...
-python -m generator --profile minimal
+curl http://localhost:9090/health
+# → {"status": "healthy"}
 ```
 
-This will:
-1. Read the full specification (OpenAPI, schemas, tests)
-2. Ask Claude to generate a FastAPI + SQLite server
-3. Install it in `./generated/.venv`
-4. Start the server and run the test suite
-5. Iterate on failures until all tests pass
+## Step 3: Run Your First Test
 
-The output lands in `./generated/` by default. You can customize:
+Run the core CRUD suite — the foundation of the specification:
 
 ```bash
-python -m generator \
-  --profile standard \
-  --backend python/flask/postgres \
-  --output ./my-cmdb \
-  --port 9000 \
-  --model claude-opus-4-6 \
-  --max-iterations 10
+CMDB_BASE_URL=http://localhost:9090 pytest suites/core/test_ci_crud.py --tb=short -q
 ```
 
-## Running Tests
+You should see all tests pass. Each test is a behavioral requirement: "creating a CI returns a valid UUID", "deleting a CI with relationships returns 409", etc.
 
-### Full profile
+## Step 4: Explore the API
+
+With the server still running, try the API yourself:
+
+**Create a CI:**
+```bash
+curl -s -X POST http://localhost:9090/cis \
+  -H 'Content-Type: application/json' \
+  -d '{"name": "web-01", "type": "server", "attributes": {"env": "prod", "region": "us-east-1"}}' | python -m json.tool
+```
+
+**List all CIs:**
+```bash
+curl -s http://localhost:9090/cis | python -m json.tool
+```
+
+**Create a relationship:**
+```bash
+# First create a second CI
+curl -s -X POST http://localhost:9090/cis \
+  -H 'Content-Type: application/json' \
+  -d '{"name": "postgres-main", "type": "database", "attributes": {"engine": "postgresql"}}' | python -m json.tool
+
+# Link them (replace the IDs with the ones returned above)
+curl -s -X POST http://localhost:9090/relationships \
+  -H 'Content-Type: application/json' \
+  -d '{"source_id": "<web-01-id>", "target_id": "<postgres-main-id>", "type": "depends_on"}' | python -m json.tool
+```
+
+**Search by attribute:**
+```bash
+curl -s 'http://localhost:9090/cis/search?q=prod' | python -m json.tool
+```
+
+**Check audit history:**
+```bash
+curl -s http://localhost:9090/cis/<id>/history | python -m json.tool
+```
+
+## Step 5: Run a Full Profile
+
+Profiles are compliance tiers. Start with minimal and work up:
 
 ```bash
-CMDB_BASE_URL=http://localhost:8080 pytest -c profiles/minimal.ini
-CMDB_BASE_URL=http://localhost:8080 pytest -c profiles/standard.ini
-CMDB_BASE_URL=http://localhost:8080 pytest -c profiles/enterprise.ini
+# Minimal — core CRUD only
+CMDB_BASE_URL=http://localhost:9090 pytest suites/core --tb=short -q
+
+# Standard — production-grade
+CMDB_BASE_URL=http://localhost:9090 pytest suites/core suites/discovery suites/audit suites/graph suites/search suites/diff suites/reconciliation suites/tags suites/ttl suites/webhooks --tb=short -q
+
+# Enterprise — everything
+CMDB_BASE_URL=http://localhost:9090 pytest suites/ --tb=short -q
 ```
 
-### Single suite
+## Step 6: Break Something
+
+This is where CDD shines. Open `reference/app.py`, find the `delete_ci` endpoint, and comment out the relationship check:
+
+```python
+# Comment out these lines in delete_ci:
+# rels = conn.execute("SELECT COUNT(*) as cnt FROM relationships ...
+# if rels["cnt"] > 0:
+#     raise HTTPException(status_code=409, ...)
+```
+
+Now re-run the core tests:
 
 ```bash
-CMDB_BASE_URL=http://localhost:8080 pytest suites/core/
-CMDB_BASE_URL=http://localhost:8080 pytest suites/graph/
+CMDB_BASE_URL=http://localhost:9090 pytest suites/core/test_ci_crud.py -k "delete" --tb=short -q
 ```
 
-### Single test
+The `test_delete_ci_with_relationship_409` test fails — the specification caught the regression. Undo your change and the tests pass again. This is the feedback loop: **tests define the contract, implementations prove compliance.**
+
+## Step 7: Use the Demo Script
+
+For a one-command experience that handles setup, server lifecycle, and test execution:
 
 ```bash
-CMDB_BASE_URL=http://localhost:8080 pytest suites/core/test_ci_crud.py::TestCICreate::test_returns_valid_uuid
+./demo.sh                        # minimal profile
+./demo.sh --profile standard     # standard profile
+./demo.sh --profile enterprise   # full suite
 ```
 
-### Thorough property-based testing
+The script starts the server, runs the chosen profile's tests, and leaves the server running for you to explore.
 
-By default, Hypothesis runs 25 examples per property test. For release validation:
+---
+
+## Or: Use the Demo Script Directly
+
+If you want to skip the manual steps entirely:
 
 ```bash
-HYPOTHESIS_PROFILE=release CMDB_BASE_URL=http://localhost:8080 pytest -c profiles/enterprise.ini
+git clone https://github.com/syndicalt/cdd-cmdb.git && cd cdd-cmdb
+./demo.sh
 ```
 
-This runs 500 examples per property, catching edge cases that fast runs miss.
+This installs dependencies, starts the reference server, runs the test suite, and reports results — all in one command.
 
-## Next Steps
+---
 
-- [Writing Tests](writing-tests.md) — how to add new test suites
-- [API Contract](api-contract.md) — the full API surface defined by the spec
-- [Generator](generator.md) — how the generate-test-fix loop works
-- [Profiles](profiles.md) — understanding compliance tiers
+## What's Next
+
+- **Validate your own implementation:** Point `CMDB_BASE_URL` at any HTTP server and run the tests. If they pass, your server is a compliant CMDB.
+- **Generate a new implementation:** Use the [generator](generator.md) to have an LLM build a passing server from scratch.
+- **Add new test suites:** See [Writing Tests](writing-tests.md) to extend the specification.
+- **Understand the contract:** Read the [API Contract](api-contract.md) for the full REST surface.
+- **Choose a compliance tier:** See [Profiles](profiles.md) for what each tier covers.

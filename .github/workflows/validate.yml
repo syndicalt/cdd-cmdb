@@ -29,7 +29,7 @@ jobs:
           - profile: minimal
             testpaths: suites/core
           - profile: standard
-            testpaths: suites/core suites/discovery suites/audit suites/graph suites/search suites/diff suites/reconciliation
+            testpaths: suites/core suites/discovery suites/audit suites/graph suites/search suites/diff suites/reconciliation suites/tags suites/ttl suites/webhooks
 
     steps:
       - uses: actions/checkout@v5

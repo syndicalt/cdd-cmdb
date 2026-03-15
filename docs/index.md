@@ -44,6 +44,12 @@ docker compose up --build
 | Suite | What it specifies |
 |---|---|
 | `core/` | CI CRUD, relationships, schema validation |
+| `search/` | Full-text search, attribute filtering, wildcards, sorting, pagination |
+| `diff/` | Attribute-level change diffs, point-in-time snapshots |
+| `reconciliation/` | Source-based reconciliation (new/updated/unchanged/stale) |
+| `tags/` | Tag CRUD, tag-based search, tag listing |
+| `ttl/` | Per-CI expiry, sweep lifecycle, status filtering |
+| `webhooks/` | Webhook subscriptions, test pings, delivery history |
 | `security/` | Injection resistance, auth, RBAC |
 | `discovery/` | Bulk CI import, source metadata |
 | `performance/` | Latency SLAs, throughput under load |
@@ -56,7 +62,7 @@ docker compose up --build
 | Profile | Suites | Use case |
 |---|---|---|
 | `minimal` | core | MVP — prove basic CRUD works |
-| `standard` | core, discovery, audit, graph | Production-grade with full data model |
+| `standard` | core, discovery, audit, graph, search, diff, reconciliation, tags, ttl, webhooks | Production-grade with full data model |
 | `enterprise` | all | Full compliance including security, performance, governance |
 
 ## Links
