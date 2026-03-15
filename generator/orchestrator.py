@@ -174,7 +174,11 @@ class Orchestrator:
     def _call_llm(self, system: str, user: str) -> str:
         """Send a message to the LLM and return the text response."""
         print(f"  Calling {self.llm.model_name}...")
-        return self.llm.generate(system, user)
+        try:
+            return self.llm.generate(system, user)
+        except Exception as e:
+            print(f"  ERROR from LLM provider: {type(e).__name__}: {e}")
+            raise
 
     def _setup_env(self) -> None:
         """Set up the runtime environment for the generated server."""

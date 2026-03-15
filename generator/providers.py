@@ -31,15 +31,34 @@ class AnthropicProvider(LLMProvider):
         import anthropic
         self._model = model
         self._client = anthropic.Anthropic()
+        self._anthropic = anthropic  # for exception types
 
     def generate(self, system: str, user: str, max_tokens: int = 32768) -> str:
-        response = self._client.messages.create(
-            model=self._model,
-            max_tokens=max_tokens,
-            system=system,
-            messages=[{"role": "user", "content": user}],
-        )
-        return "\n".join(b.text for b in response.content if b.type == "text")
+        import time
+
+        retries = 3
+        for attempt in range(retries):
+            try:
+                response = self._client.messages.create(
+                    model=self._model,
+                    max_tokens=max_tokens,
+                    system=system,
+                    messages=[{"role": "user", "content": user}],
+                )
+                return "\n".join(
+                    b.text for b in response.content if b.type == "text"
+                )
+            except (
+                self._anthropic.RateLimitError,
+                self._anthropic.APIStatusError,
+                self._anthropic.APIConnectionError,
+            ) as e:
+                if attempt < retries - 1:
+                    wait = 2 ** (attempt + 1) * 5  # 10s, 20s
+                    print(f"  API error: {e}. Retrying in {wait}s...")
+                    time.sleep(wait)
+                else:
+                    raise
 
     @property
     def model_name(self) -> str:
