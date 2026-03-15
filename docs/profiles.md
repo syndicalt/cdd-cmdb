@@ -1,3 +1,8 @@
+---
+layout: default
+title: Profiles
+---
+
 # Profiles
 
 Profiles are compliance tiers. Each one is a pytest `.ini` file in `profiles/` that selects which test suites to run.

@@ -1,3 +1,8 @@
+---
+layout: default
+title: Generator
+---
+
 # Generator
 
 The generator is a CLI that produces a runnable CMDB implementation by prompting Claude and iterating on test failures.

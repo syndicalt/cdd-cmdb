@@ -1,0 +1,14 @@
+title: CDD-CMDB
+description: A Configuration Management Database defined entirely as a test suite
+remote_theme: pages-themes/minimal@v0.2.0
+plugins:
+  - jekyll-remote-theme
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Architecture: architecture.md
+  - API Contract: api-contract.md
+  - Writing Tests: writing-tests.md
+  - Generator: generator.md
+  - Profiles: profiles.md

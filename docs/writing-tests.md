@@ -1,3 +1,8 @@
+---
+layout: default
+title: Writing Tests
+---
+
 # Writing Tests
 
 This guide covers how to add new test suites to the CDD-CMDB specification.

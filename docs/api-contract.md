@@ -1,3 +1,8 @@
+---
+layout: default
+title: API Contract
+---
+
 # API Contract
 
 The full API surface is defined by the OpenAPI spec at `specs/openapi/cmdb.yaml` and extended by the test suites. This document summarizes the contract.
