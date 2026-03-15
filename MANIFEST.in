@@ -1,0 +1,8 @@
+include conftest.py
+include LICENSE
+include README.md
+recursive-include specs *.yaml *.json
+recursive-include profiles *.ini
+recursive-include suites *.py
+recursive-include harness *.py
+recursive-include generator *.py

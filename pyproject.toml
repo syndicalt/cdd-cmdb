@@ -6,12 +6,35 @@ build-backend = "setuptools.build_meta"
 name = "cdd-cmdb-spec"
 version = "1.0.0"
 description = "Test suite specification for a compliant CMDB instance"
+readme = "README.md"
+license = "Apache-2.0"
 requires-python = ">=3.10"
+authors = [
+    {name = "CDD-CMDB Contributors"},
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: Pytest",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Testing",
+    "Topic :: System :: Systems Administration",
+]
 dependencies = [
     "httpx>=0.27",
     "pytest>=8",
     "hypothesis>=6.100",
 ]
+
+[project.urls]
+Homepage = "https://github.com/syndicalt/cdd-cmdb"
+Repository = "https://github.com/syndicalt/cdd-cmdb"
+Documentation = "https://syndicalt.github.io/cdd-cmdb/"
+Issues = "https://github.com/syndicalt/cdd-cmdb/issues"
 
 [project.optional-dependencies]
 generator = [
@@ -34,6 +57,9 @@ cmdb-generate = "generator.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["harness*", "generator*", "suites*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.ini", "*.yaml", "*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["suites"]
