@@ -1,0 +1,74 @@
+name: Validate Spec
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install ruff
+      - run: ruff check suites/ harness/ generator/ conftest.py
+
+  test-spec:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: lint
+
+    strategy:
+      matrix:
+        profile: [minimal, standard, enterprise]
+
+    services:
+      cmdb:
+        image: python:3.12-slim
+        options: >-
+          --health-cmd "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9090/health')\""
+          --health-interval 3s
+          --health-timeout 5s
+          --health-retries 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install spec dependencies
+        run: pip install -e .
+
+      - name: Start reference server
+        run: |
+          cd generated
+          python -m venv .venv
+          .venv/bin/pip install -q -r requirements.txt
+          PORT=9090 .venv/bin/python app.py &
+          # Wait for health
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:9090/health > /dev/null 2>&1; then
+              echo "Server healthy"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Run ${{ matrix.profile }} profile
+        env:
+          CMDB_BASE_URL: http://localhost:9090
+          HYPOTHESIS_PROFILE: ci
+        run: pytest -c profiles/${{ matrix.profile }}.ini --tb=short -q
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose up --build --exit-code-from validate

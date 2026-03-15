@@ -1,0 +1,28 @@
+name: Bug in Specification
+description: Report a test that is incorrect, too strict, or contradicts the OpenAPI spec
+title: "[spec-bug] "
+labels: ["spec-bug"]
+body:
+  - type: input
+    id: test-file
+    attributes:
+      label: Test file
+      placeholder: "suites/core/test_ci_crud.py::TestCICreate::test_create_minimal"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What's wrong
+      description: Explain why the test is incorrect or overly prescriptive.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: |
+        Show the test output, the OpenAPI spec section, or the conflicting behavior.
+        Include your implementation details if relevant.

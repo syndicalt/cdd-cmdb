@@ -1,0 +1,72 @@
+name: New Test Suite Proposal
+description: Propose a new test suite for the CMDB specification
+title: "[suite] "
+labels: ["suite-proposal"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Propose a new test suite that extends the CMDB specification.
+        See [CONTRIBUTING.md](../../CONTRIBUTING.md) for guidelines.
+
+  - type: input
+    id: suite-name
+    attributes:
+      label: Suite name
+      description: "e.g., discovery_aws, compliance_nist, federation"
+      placeholder: "suites/my_suite"
+    validations:
+      required: true
+
+  - type: textarea
+    id: invariants
+    attributes:
+      label: Invariants
+      description: What behavioral contracts will this suite enforce?
+      placeholder: |
+        - POST /discover/nmap returns CIs with host attributes
+        - Discovered CIs are importable via POST /cis/bulk
+        - Scan results include open ports in attributes
+    validations:
+      required: true
+
+  - type: dropdown
+    id: profile
+    attributes:
+      label: Target profile(s)
+      description: Which compliance tier(s) should include this suite?
+      multiple: true
+      options:
+        - minimal
+        - standard
+        - enterprise
+        - new custom profile
+    validations:
+      required: true
+
+  - type: textarea
+    id: new-endpoints
+    attributes:
+      label: New API endpoints (if any)
+      description: Does this suite require new endpoints not in the current spec?
+      placeholder: |
+        - POST /discover/nmap — trigger network scan
+        - GET /discover/nmap/{scan_id} — poll scan results
+
+  - type: dropdown
+    id: external-deps
+    attributes:
+      label: External dependencies
+      description: Does this suite require external services or credentials?
+      options:
+        - "None — pure API behavior tests"
+        - "Optional — tests skip gracefully without credentials"
+        - "Required — needs specific infrastructure"
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Links, references, or motivation for this suite.
