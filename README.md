@@ -51,8 +51,11 @@ Tests are organized into modules, each covering a distinct capability:
 | Suite | What it specifies |
 |---|---|
 | `core/` | CI CRUD, relationships, schema validation |
+| `search/` | Full-text search, attribute filtering, wildcards, sorting, pagination |
+| `diff/` | Attribute-level change diffs, point-in-time snapshots, time-range queries |
+| `reconciliation/` | Source-based reconciliation (new/updated/unchanged/stale detection) |
 | `security/` | Injection resistance (SQL, XSS, NoSQL, template, path traversal), auth, RBAC |
-| `discovery/` | Bulk CI import, source metadata, reconciliation |
+| `discovery/` | Bulk CI import, source metadata |
 | `performance/` | Latency SLAs per operation, throughput under bulk load |
 | `governance/` | Runtime validation policies (required attributes, allowed values) |
 | `audit/` | Immutable CI change history (create/update/delete events) |
@@ -65,7 +68,7 @@ Profiles are compliance tiers. Each selects a subset of suites:
 | Profile | Suites | Use case |
 |---|---|---|
 | `minimal` | core | MVP — prove basic CRUD works |
-| `standard` | core, discovery, audit, graph | Production-grade with full data model |
+| `standard` | core, discovery, audit, graph, search, diff, reconciliation | Production-grade with full data model |
 | `enterprise` | all | Full compliance including security, performance, governance |
 
 Run a profile:
@@ -180,6 +183,11 @@ The test suites collectively define the following REST API:
 | `GET` | `/cis/{id}/relationships` | Direct relationships (filterable by `direction`, `type`) |
 | `GET` | `/cis/{id}/impact` | Transitive downstream traversal (`depth`, `relationship_types`) |
 | `GET` | `/cis/{id}/dependencies` | Transitive upstream traversal |
+| `GET` | `/cis/search` | Full-text search, attribute filters, wildcards, sorting |
+| `GET` | `/cis/{id}/diff` | Changes in a time range (`from`, `to`) |
+| `GET` | `/cis/{id}/history/{entry_id}/diff` | Attribute-level diff for a specific audit entry |
+| `GET` | `/cis/{id}/history/{entry_id}/snapshot` | Full CI state at a specific audit entry |
+| `POST` | `/cis/reconcile` | Reconcile CIs from an external source |
 
 ### Relationships
 

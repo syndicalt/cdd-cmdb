@@ -297,6 +297,89 @@ class CMDBClient:
         resp = self._http.delete(f"/policies/{policy_id}")
         _raise(resp)
 
+    # --- Search ---
+
+    def search_cis(
+        self,
+        q: str | None = None,
+        name: str | None = None,
+        type: str | None = None,
+        attribute_filters: dict[str, str] | None = None,
+        sort: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[CI]:
+        """Search CIs with full-text query, filters, wildcards, and sorting."""
+        params: dict[str, Any] = {"limit": limit, "offset": offset}
+        if q is not None:
+            params["q"] = q
+        if name is not None:
+            params["name"] = name
+        if type is not None:
+            params["type"] = type
+        if sort is not None:
+            params["sort"] = sort
+        if attribute_filters:
+            for key, value in attribute_filters.items():
+                params[f"attributes.{key}"] = value
+        resp = self._http.get("/cis/search", params=params)
+        _raise(resp)
+        data = resp.json()
+        return [CI.from_dict(item) for item in data["items"]]
+
+    # --- Diff / Change Tracking ---
+
+    def get_ci_diff(self, ci_id: str, entry_id: str) -> dict:
+        """Get attribute-level diff for a specific audit entry."""
+        resp = self._http.get(
+            f"/cis/{ci_id}/history/{entry_id}/diff",
+        )
+        _raise(resp)
+        return resp.json()
+
+    def get_ci_snapshot(self, ci_id: str, entry_id: str) -> dict:
+        """Get the full CI snapshot at a specific audit entry."""
+        resp = self._http.get(
+            f"/cis/{ci_id}/history/{entry_id}/snapshot",
+        )
+        _raise(resp)
+        return resp.json()
+
+    def get_ci_diff_range(
+        self,
+        ci_id: str,
+        from_ts: str,
+        to_ts: str,
+    ) -> list[dict]:
+        """Get all changes to a CI between two timestamps."""
+        resp = self._http.get(
+            f"/cis/{ci_id}/diff",
+            params={"from": from_ts, "to": to_ts},
+        )
+        _raise(resp)
+        return resp.json().get("changes", [])
+
+    # --- Reconciliation ---
+
+    def reconcile(
+        self,
+        source: str,
+        items: list[dict],
+        apply: bool = False,
+    ) -> dict:
+        """Reconcile a list of CIs from an external source.
+
+        Returns dict with keys: new, updated, unchanged, stale.
+        Each is a list of dicts with at minimum a 'name' key.
+        """
+        resp = self._http.post("/cis/reconcile", json={
+            "source": source,
+            "items": items,
+            "apply": apply,
+        })
+        _raise(resp)
+        return resp.json()
+
     # --- Raw access (for validation / negative tests only) ---
 
     def raw_post(self, path: str, json: dict) -> httpx.Response:

@@ -217,6 +217,218 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /cis/search:
+    get:
+      operationId: searchCIs
+      summary: Full-text search and advanced filtering
+      parameters:
+        - name: q
+          in: query
+          description: Full-text search across name, type, and attribute values
+          schema:
+            type: string
+        - name: name
+          in: query
+          description: Name filter (supports * wildcards)
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: sort
+          in: query
+          description: "Sort order: field:asc or field:desc"
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CI"
+                  total:
+                    type: integer
+
+  /cis/{id}/history/{entry_id}/diff:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: entry_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getCIDiff
+      summary: Attribute-level diff for a specific audit entry
+      responses:
+        "200":
+          description: Diff with field-level changes
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [action, changes]
+                properties:
+                  action:
+                    type: string
+                    enum: [created, updated, deleted]
+                  changes:
+                    type: array
+                    items:
+                      type: object
+                      required: [field]
+                      properties:
+                        field:
+                          type: string
+                        old_value: {}
+                        new_value: {}
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /cis/{id}/history/{entry_id}/snapshot:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: entry_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getCISnapshot
+      summary: Full CI state at a specific audit entry
+      responses:
+        "200":
+          description: CI snapshot at that point in time
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CI"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /cis/{id}/diff:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getCIDiffRange
+      summary: All changes to a CI between two timestamps
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: List of changes in the time range
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [changes]
+                properties:
+                  changes:
+                    type: array
+                    items:
+                      type: object
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /cis/reconcile:
+    post:
+      operationId: reconcileCIs
+      summary: Reconcile CIs from an external source
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source, items]
+              properties:
+                source:
+                  type: string
+                  description: Name of the external source
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/CIInput"
+                apply:
+                  type: boolean
+                  default: false
+                  description: If true, create/update CIs. If false, dry run.
+      responses:
+        "200":
+          description: Reconciliation results
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [new, updated, unchanged, stale]
+                properties:
+                  new:
+                    type: array
+                    items:
+                      type: object
+                  updated:
+                    type: array
+                    items:
+                      type: object
+                  unchanged:
+                    type: array
+                    items:
+                      type: object
+                  stale:
+                    type: array
+                    items:
+                      type: object
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
 components:
   schemas:
     CIInput:
