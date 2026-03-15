@@ -19,16 +19,17 @@ jobs:
 
   test-spec:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     needs: lint
 
     strategy:
       fail-fast: false
       matrix:
-        profile: [minimal, standard, enterprise]
-
-    env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        include:
+          - profile: minimal
+            testpaths: suites/core
+          - profile: standard
+            testpaths: suites/core suites/discovery suites/audit suites/graph suites/search suites/diff suites/reconciliation
 
     steps:
       - uses: actions/checkout@v5
@@ -37,25 +38,12 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install spec dependencies
-        run: pip install -e ".[generator]"
+      - name: Install dependencies
+        run: pip install -e .
 
-      - name: Generate CMDB server
+      - name: Start reference server
         run: |
-          python -m generator \
-            --profile ${{ matrix.profile }} \
-            --output ./ci-server \
-            --port 9090 \
-            --max-iterations 3 \
-            --no-cache
-
-      - name: Start generated server
-        run: |
-          cd ci-server
-          python -m venv .venv
-          .venv/bin/pip install -q -r requirements.txt
-          PORT=9090 .venv/bin/python app.py &
-          # Wait for health
+          PORT=9090 python reference/app.py &
           for i in $(seq 1 30); do
             if curl -sf http://localhost:9090/health > /dev/null 2>&1; then
               echo "Server healthy"
@@ -64,8 +52,10 @@ jobs:
             sleep 1
           done
 
-      - name: Run ${{ matrix.profile }} profile
+      - name: Run ${{ matrix.profile }} profile tests
         env:
           CMDB_BASE_URL: http://localhost:9090
           HYPOTHESIS_PROFILE: ci
-        run: pytest -c profiles/${{ matrix.profile }}.ini --tb=short -q
+        run: |
+          python -m pytest ${{ matrix.testpaths }} \
+            --tb=short -q

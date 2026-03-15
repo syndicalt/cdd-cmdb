@@ -5,10 +5,10 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY generated/requirements.txt .
+COPY reference/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY generated/app.py .
+COPY reference/app.py .
 
 ENV PORT=9090
 EXPOSE 9090

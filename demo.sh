@@ -13,7 +13,7 @@
 #
 # Options:
 #   ./demo.sh --profile minimal      Run only core tests (default)
-#   ./demo.sh --profile standard     Run core + discovery + audit + graph
+#   ./demo.sh --profile standard     Run core + discovery + audit + graph + search + diff + reconciliation
 #   ./demo.sh --profile enterprise   Run the full suite
 #   ./demo.sh --generate             Generate a new implementation via AI first
 #                                    (requires ANTHROPIC_API_KEY)
@@ -40,6 +40,16 @@ cleanup() {
     fi
 }
 trap cleanup EXIT
+
+# Map profiles to test paths
+profile_testpaths() {
+    case "$1" in
+        minimal)    echo "suites/core" ;;
+        standard)   echo "suites/core suites/discovery suites/audit suites/graph suites/search suites/diff suites/reconciliation" ;;
+        enterprise) echo "suites" ;;
+        *)          echo "suites/core" ;;
+    esac
+}
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -78,7 +88,7 @@ fi
 pip install -q -e "." 2>/dev/null
 echo "  Done."
 
-# --- Step 2: Optionally generate a new implementation ---
+# --- Step 2: Determine which server to use ---
 if [ "$GENERATE" = true ]; then
     echo ""
     echo "[2/4] Generating implementation via AI..."
@@ -88,24 +98,15 @@ if [ "$GENERATE" = true ]; then
     fi
     pip install -q -e ".[generator]" 2>/dev/null
     python -m generator --profile "$PROFILE" --port "$PORT"
+    SERVER_APP="generated/app.py"
     echo "  Done."
 else
     echo ""
-    echo "[2/4] Using reference implementation in generated/"
-    if [ ! -f "generated/app.py" ]; then
-        echo "  ERROR: generated/app.py not found."
-        echo "  Run with --generate flag, or place an implementation in generated/"
+    echo "[2/4] Using reference implementation..."
+    SERVER_APP="reference/app.py"
+    if [ ! -f "$SERVER_APP" ]; then
+        echo "  ERROR: $SERVER_APP not found."
         exit 1
-    fi
-
-    # Set up the generated server's venv
-    if [ ! -d "generated/.venv" ]; then
-        python3 -m venv generated/.venv 2>/dev/null || python -m venv generated/.venv
-    fi
-    if [ -f "generated/.venv/Scripts/pip" ]; then
-        generated/.venv/Scripts/pip install -q -r generated/requirements.txt 2>/dev/null
-    else
-        generated/.venv/bin/pip install -q -r generated/requirements.txt 2>/dev/null
     fi
     echo "  Done."
 fi
@@ -115,17 +116,9 @@ echo ""
 echo "[3/4] Starting CMDB server on port $PORT..."
 
 # Clean database for a fresh run
-rm -f generated/cmdb.db
+rm -f cmdb.db
 
-if [ -f "generated/.venv/Scripts/python.exe" ]; then
-    GENPYTHON="generated/.venv/Scripts/python.exe"
-elif [ -f "generated/.venv/bin/python" ]; then
-    GENPYTHON="generated/.venv/bin/python"
-else
-    GENPYTHON="python"
-fi
-
-PORT=$PORT $GENPYTHON generated/app.py &
+PORT=$PORT python "$SERVER_APP" &
 SERVER_PID=$!
 
 # Wait for health
@@ -149,13 +142,14 @@ fi
 
 # --- Step 4: Run the test suite ---
 echo ""
+TESTPATHS=$(profile_testpaths "$PROFILE")
 echo "[4/4] Running validation suite ($PROFILE profile)..."
+echo "  Test paths: $TESTPATHS"
 echo ""
 
 CMDB_BASE_URL="http://localhost:$PORT" \
 HYPOTHESIS_PROFILE=ci \
-python -m pytest suites/core/ --tb=short -q \
-    --override-ini="pythonpath=$SCRIPT_DIR"
+python -m pytest $TESTPATHS --tb=short -q
 
 EXIT_CODE=$?
 

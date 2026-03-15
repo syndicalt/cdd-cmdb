@@ -41,7 +41,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 python -m generator --profile minimal
 
 # Or validate your own implementation
-CMDB_BASE_URL=http://localhost:8080 pytest -c profiles/minimal.ini
+CMDB_BASE_URL=http://localhost:8080 pytest suites/core --tb=short -q
 ```
 
 ## Test Suites
@@ -74,7 +74,7 @@ Profiles are compliance tiers. Each selects a subset of suites:
 Run a profile:
 
 ```bash
-CMDB_BASE_URL=http://localhost:8080 pytest -c profiles/standard.ini
+CMDB_BASE_URL=http://localhost:8080 pytest suites/core suites/discovery suites/audit suites/graph suites/search suites/diff suites/reconciliation --tb=short -q
 ```
 
 ## The Generator
