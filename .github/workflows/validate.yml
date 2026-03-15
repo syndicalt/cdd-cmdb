@@ -19,21 +19,16 @@ jobs:
 
   test-spec:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     needs: lint
 
     strategy:
+      fail-fast: false
       matrix:
         profile: [minimal, standard, enterprise]
 
-    services:
-      cmdb:
-        image: python:3.12-slim
-        options: >-
-          --health-cmd "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9090/health')\""
-          --health-interval 3s
-          --health-timeout 5s
-          --health-retries 15
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
     steps:
       - uses: actions/checkout@v5
@@ -43,11 +38,20 @@ jobs:
           python-version: '3.12'
 
       - name: Install spec dependencies
-        run: pip install -e .
+        run: pip install -e ".[generator]"
 
-      - name: Start reference server
+      - name: Generate CMDB server
         run: |
-          cd generated
+          python -m generator \
+            --profile ${{ matrix.profile }} \
+            --output ./ci-server \
+            --port 9090 \
+            --max-iterations 3 \
+            --no-cache
+
+      - name: Start generated server
+        run: |
+          cd ci-server
           python -m venv .venv
           .venv/bin/pip install -q -r requirements.txt
           PORT=9090 .venv/bin/python app.py &
@@ -65,10 +69,3 @@ jobs:
           CMDB_BASE_URL: http://localhost:9090
           HYPOTHESIS_PROFILE: ci
         run: pytest -c profiles/${{ matrix.profile }}.ini --tb=short -q
-
-  docker:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v5
-      - run: docker compose up --build --exit-code-from validate
