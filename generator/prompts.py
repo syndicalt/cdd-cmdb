@@ -82,6 +82,7 @@ The implementation failed {failure_count} test(s). Fix the issues.
 ## Current implementation
 {current_code}
 
-Output ALL files in the same <file path="..."> format, even unchanged ones.
+Output ONLY the files that changed in the same <file path="..."> format.
+Do NOT re-output files that are unchanged — only include modified files.
 The entry point must remain the same file name.
 """

@@ -248,6 +248,11 @@ class Orchestrator:
                 print("Generating initial implementation...")
                 user_prompt = GENERATE_PROMPT.format(**ctx)
             else:
+                # Cooldown between iterations to respect rate limits
+                import time
+                print("Waiting 60s for rate limit cooldown...")
+                time.sleep(60)
+
                 print("Generating fix...")
                 current_code = read_generated_code(self.output_dir)
                 user_prompt = FIX_PROMPT.format(
