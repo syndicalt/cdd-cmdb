@@ -39,15 +39,17 @@ class AnthropicProvider(LLMProvider):
         retries = 3
         for attempt in range(retries):
             try:
-                response = self._client.messages.create(
+                # Use streaming to avoid 10-minute timeout on large prompts
+                text_parts: list[str] = []
+                with self._client.messages.stream(
                     model=self._model,
                     max_tokens=max_tokens,
                     system=system,
                     messages=[{"role": "user", "content": user}],
-                )
-                return "\n".join(
-                    b.text for b in response.content if b.type == "text"
-                )
+                ) as stream:
+                    for text in stream.text_stream:
+                        text_parts.append(text)
+                return "".join(text_parts)
             except (
                 self._anthropic.RateLimitError,
                 self._anthropic.APIStatusError,
